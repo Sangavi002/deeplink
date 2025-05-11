@@ -14,11 +14,10 @@ const CreateShortUrl = ({ token }) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
 
-    
     if (errors[name] && value.trim()) {
       setErrors((prevErrors) => {
         const newErrors = { ...prevErrors };
-        delete newErrors[name]; 
+        delete newErrors[name];
         return newErrors;
       });
     }
@@ -26,18 +25,35 @@ const CreateShortUrl = ({ token }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!form.name.trim()) newErrors.name = 'Name is required';
-    if (!form.long_url.trim()) newErrors.long_url = 'Long URL is required';
+    const urlPattern = /^(https?:\/\/)[^\s/$.?#].[^\s]*$/i;
+
+    if (!form.name.trim()) {
+      newErrors.name = 'Name is required';
+    } else if (form.name.trim().length > 64) {
+      newErrors.name = 'Name should not exceed 64 characters';
+    }
+
+    if (!form.long_url.trim()) {
+      newErrors.long_url = 'Long URL is required';
+    } else if (!urlPattern.test(form.long_url.trim())) {
+      newErrors.long_url = 'Enter a valid URL (e.g., https://example.com)';
+    }
+
+    if (form.fallback_url && !urlPattern.test(form.fallback_url.trim())) {
+      newErrors.fallback_url = 'Enter a valid fallback URL';
+    }
+
+    if (form.short_url && form.short_url.trim().length > 8) {
+      newErrors.short_url = 'Short link endpoint should not exceed 8 characters';
+    }
+
     setErrors(newErrors);
-    setLoading(false);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleGenerate = async () => {
-    setLoading(true);
-
-    // Validate the form before submitting
     if (!validateForm()) return;
+    setLoading(true);
 
     try {
       const payload = {
@@ -50,17 +66,17 @@ const CreateShortUrl = ({ token }) => {
       const response = await axios.post(
         'https://pre-prod.leanagri.com/deeplink/api/v1/create-deeplink/',
         payload,
-        {
-          headers: { Authorization: `Token ${token}` },
-        }
+        { headers: { Authorization: `Token ${token}` } }
       );
+
       setGenerated(`app.bharatagri.co/${response.data.short_url}`);
       setShowModal(true);
       setForm({ name: '', long_url: '', fallback_url: '', short_url: '' });
     } catch (err) {
-      console.error("Error:", err.response?.data || err.message);
-      setGenerated(`Something went wrong,Error: ${err.response?.data?.error || err.message}`);
+      console.error('Error:', err.response?.data || err.message);
+      setGenerated(`Something went wrong, Error: ${err.response?.data?.error || err.message}`);
       setShowModal(true);
+      setForm({ name: '', long_url: '', fallback_url: '', short_url: '' });
     } finally {
       setLoading(false);
     }
@@ -92,15 +108,19 @@ const CreateShortUrl = ({ token }) => {
               name={field}
               type={field.includes('url') ? 'url' : 'text'}
               id={field}
-              className={`w-full p-4 mt-1 border rounded-xl ${errors[field] ? 'border-red-600' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600`}
+              maxLength={field === 'name' ? 64 : field === 'short_url' ? 8 : undefined}
+              pattern={field === 'long_url' || field === 'fallback_url' ? 'https?://.+' : undefined}
+              className={`w-full p-4 mt-1 border rounded-xl ${
+                errors[field] ? 'border-red-600' : 'border-gray-600'
+              } bg-gray-700 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600`}
               placeholder={
                 field === 'long_url'
-                  ? 'Enter the long URL'
+                  ? 'Enter the long URL (e.g., https://...)'
                   : field === 'name'
                   ? 'Enter a name for the URL'
                   : field === 'short_url'
                   ? 'Optional: Custom short URL'
-                  : 'Optional: Fallback URL'
+                  : 'Optional: Fallback URL (e.g., https://...)'
               }
               value={form[field]}
               onChange={handleChange}
@@ -112,19 +132,21 @@ const CreateShortUrl = ({ token }) => {
       </div>
 
       <button
-        className={`w-full py-3 rounded-xl mt-6 font-semibold transition duration-300 ${loading ? 'bg-blue-300 opacity-60' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+        className={`w-full py-3 rounded-xl mt-6 font-semibold transition duration-300 flex justify-center items-center ${
+          loading ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+        } text-white`}
         onClick={handleGenerate}
         disabled={loading}
       >
         {loading ? (
-          <div className="inline-block w-5 h-5 border-4 border-t-4 border-blue-600 rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
         ) : (
           'Generate Short URL'
         )}
       </button>
 
       {/* Success Modal */}
-      {showModal && !generated.includes("Error") && (
+      {showModal && !generated.includes('Error') && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
           <div className="bg-white rounded-xl p-6 w-96 shadow-xl text-center">
             <h3 className="text-xl font-bold mb-4 text-gray-800">Short URL Generated</h3>
@@ -146,7 +168,7 @@ const CreateShortUrl = ({ token }) => {
       )}
 
       {/* Error Modal */}
-      {showModal && generated.includes("Error") && (
+      {showModal && generated.includes('Error') && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
           <div className="bg-white rounded-xl p-6 w-96 shadow-xl text-center">
             <h3 className="text-xl font-bold mb-4 text-red-600">Failed to Generate</h3>

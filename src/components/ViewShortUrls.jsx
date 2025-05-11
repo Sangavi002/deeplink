@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { FaRegCopy } from 'react-icons/fa';
 
 const ViewShortUrls = ({ token }) => {
   const [results, setResults] = useState([]);
@@ -8,18 +9,19 @@ const ViewShortUrls = ({ token }) => {
   const [debouncedSearchValue, setDebouncedSearchValue] = useState('');
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
+  const [copiedId, setCopiedId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Debounce logic: update debounced value after 300ms of inactivity
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchValue(searchValue);
-      setPage(1); // reset to first page on new search
-    }, 500);
-
+      setPage(1);
+    }, 650);
     return () => clearTimeout(handler);
   }, [searchValue]);
 
   const fetchUrls = async () => {
+    setLoading(true);
     try {
       let url = `https://pre-prod.leanagri.com/deeplink/api/v1/deeplinks/?page=${page}`;
       if (debouncedSearchValue) {
@@ -32,12 +34,20 @@ const ViewShortUrls = ({ token }) => {
       setCount(res.data.count);
     } catch (err) {
       alert('Failed to fetch URLs');
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUrls();
   }, [page, debouncedSearchValue, searchType]);
+
+  const handleCopy = async (id, shortUrl) => {
+    await navigator.clipboard.writeText(shortUrl);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -59,6 +69,13 @@ const ViewShortUrls = ({ token }) => {
         />
       </div>
 
+      {/* Loader (above the table only) */}
+      {loading && (
+        <div className="flex justify-center my-4">
+          <div className="w-8 h-8 border-4 border-blue-500 border-dashed rounded-full animate-spin"></div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse shadow-sm rounded-lg overflow-hidden">
@@ -72,20 +89,39 @@ const ViewShortUrls = ({ token }) => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {results.length > 0 ? (
-              results.map((r) => (
-                <tr key={r.id}>
-                  <td className="p-3 text-sm">{r.name}</td>
-                  <td className="p-3 break-all text-sm">{r.long_url}</td>
-                  <td className="p-3 text-blue-600 break-all text-sm">{r.short_url}</td>
-                  <td className="p-3 break-all text-sm">{r.fallback_url || '-'}</td>
-                </tr>
-              ))
+              results.map((r) => {
+                const fullShortUrl = `https://app.bharatagri.co/${r.short_url}`;
+                return (
+                  <tr key={r.id}>
+                    <td className="p-3 text-sm">{r.name}</td>
+                    <td className="p-3 break-all text-sm">{r.long_url}</td>
+                    <td className="p-3 break-all text-sm text-blue-600">
+                      <div className="flex items-center gap-2">
+                        <span>{fullShortUrl}</span>
+                        <button
+                          onClick={() => handleCopy(r.id, fullShortUrl)}
+                          className="text-gray-600 hover:text-blue-600"
+                          title="Copy to clipboard"
+                        >
+                          <FaRegCopy />
+                        </button>
+                        {copiedId === r.id && (
+                          <span className="text-green-500 text-xs">Copied!</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3 break-all text-sm">{r.fallback_url || '-'}</td>
+                  </tr>
+                );
+              })
             ) : (
-              <tr>
-                <td colSpan="4" className="p-4 text-center text-gray-500">
-                  No results found
-                </td>
-              </tr>
+              !loading && (
+                <tr>
+                  <td colSpan="4" className="p-4 text-center text-gray-500">
+                    No results found
+                  </td>
+                </tr>
+              )
             )}
           </tbody>
         </table>
@@ -95,20 +131,20 @@ const ViewShortUrls = ({ token }) => {
       <div className="flex justify-between items-center mt-6 text-gray-700">
         <button
           className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-          disabled={page === 1}
+          disabled={page === 1 || loading}
           onClick={() => setPage(page - 1)}
         >
-          &lt; Prev
+          {'< Prev'}
         </button>
         <span>
           Page {page} of {Math.ceil(count / 10)}
         </span>
         <button
           className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-          disabled={page >= Math.ceil(count / 10)}
+          disabled={page >= Math.ceil(count / 10) || loading}
           onClick={() => setPage(page + 1)}
         >
-          Next &gt;
+          {'Next >'}
         </button>
       </div>
     </div>
